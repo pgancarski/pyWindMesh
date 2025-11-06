@@ -1,8 +1,10 @@
-from meshSmoother import MeshSmoother2D
 import numpy as np
-from mesh import Mesh2D
 from typing import Tuple
 from math import acos, degrees, radians
+
+from src.domain import Grid2D
+from src.domain import GridSmoother2D
+
 
 def compute_angle(p1, pc, p2):
     v1 = p1 - pc
@@ -14,14 +16,14 @@ def compute_angle(p1, pc, p2):
     cosv = np.clip(dot / (n1 * n2), -1.0, 1.0)
     return acos(cosv)
 
-class SurfaceMaxAngleSmoothing(MeshSmoother2D):
+class SurfaceMaxAngleSmoothing(GridSmoother2D):
     max_angle: float=30 #in deegres
     first_cell_size: float=0.0
 
-    def smooth_step(self, mesh: Mesh2D) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        X = mesh.X.copy()
-        Y = mesh.Y.copy()
-        Z = mesh.Z.copy()
+    def smooth_step(self, grid:Grid2D) -> Tuple[Grid2D, float]:
+        X = grid.X.copy()
+        Y = grid.Y.copy()
+        Z = grid.point_values["Z"].copy()
 
         # set up reference cell size on first call
         if self.first_cell_size == 0.0:
@@ -107,4 +109,6 @@ class SurfaceMaxAngleSmoothing(MeshSmoother2D):
             abs(new_Z - Z).max()
         )
 
-        return new_X, new_Y, new_Z, error
+        grid.set_new_XYZ(new_X, new_Y, new_Z)
+
+        return grid, error

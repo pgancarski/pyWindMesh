@@ -1,24 +1,22 @@
-from topography import Topography
-from dataclasses import dataclass, field
 import numpy as np
 import laspy
 from scipy.spatial import KDTree
 
-@dataclass
-class LAS_Topography(Topography):
-    laz_path: str = field(repr=False)
-    k: int = 8                  # number of neighbors for interpolation
-    power: float = 1.0          # inverse-distance power
-    _points: np.ndarray = field(init=False, repr=False)
-    _z: np.ndarray = field(init=False, repr=False)
-    _kdtree: KDTree = field(init=False, repr=False)
+from domain import SpatialValueProvider
 
-    def __post_init__(self):
+class LAS_Topography(SpatialValueProvider):
+    def __init__(self, config, laz_path:str):
+        super().__init__(config)
+
+        self.laz_path = laz_path
+        self.k = 8                  # number of neighbors for interpolation
+        self.power = 1.0          # inverse-distance power
+
         # Load LAZ and build KD-tree for neighbor queries
         las = laspy.read(self.laz_path)
+
         self._points = las.xyz[:, :2]
         self._z = las.xyz[:, 2]
-
         self._kdtree = KDTree(self._points)
 
     def get_domain_range(self) -> tuple[float, float, float, float]:
@@ -26,7 +24,7 @@ class LAS_Topography(Topography):
         y_coords = self._points[:, 1]
         return x_coords.min(), x_coords.max(), y_coords.min(), y_coords.max()
 
-    def sample_z(self, x: float, y: float) -> float:
+    def value_at_point(self, x: float, y: float, _:float) -> float:
         """Shepard (IDW) interpolation of z at (x, y)."""
         # query k neighbors
         dists, idxs = self._kdtree.query([x, y], k=min(self.k, len(self._z)))
@@ -42,8 +40,8 @@ class LAS_Topography(Topography):
         weights = 1.0 / (dists ** self.power)
         z_vals = self._z[idxs]
         return float(np.sum(weights * z_vals) / np.sum(weights))
-
-    def array_sample_Z(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    
+    def values_at_points(self, X: np.ndarray, Y: np.ndarray, _: np.ndarray|None = None) -> np.ndarray:
         """
         Apply Shepard interpolation over a grid.
         X, Y must be same-shaped arrays of query coords.

@@ -1,2 +1,4 @@
-# OpenWindMesh
-open source meshing software for wind flow simulations over complex terrain
+# pyWindMesh
+Open source meshing software for wind flow simulations over complex terrain.
+
+

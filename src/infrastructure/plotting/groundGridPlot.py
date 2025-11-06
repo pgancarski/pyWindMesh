@@ -1,133 +1,33 @@
 import numpy as np
 import plotly.graph_objects as go
-from config import Config
-
 import plotly.io as pio
+
+from src.application.interfaces import MeshPlotter
+from src.domain import Mesh2D
+
+#pio.renderers.default = "browser"
+
 pio.renderers.default = "browser"
 
-PLOT_TABBING = 1 # extra plot range to avoid cutting of surfaces touching the extreams
+PLOT_TABBING = 1 # extra plot range to avoid cutting of surfaces touching the extreams 
 
-# helper to compute angle between a,b: arccos((a·b)/(|a||b|))
-def angle(a, b):
-    dot = np.sum(a*b, axis=-1)
-    na  = np.linalg.norm(a, axis=-1)
-    nb  = np.linalg.norm(b, axis=-1)
-    # clamp to [-1,1] to avoid NaNs
-    cosang = np.clip(dot/(na*nb), -1.0, 1.0)
-    return np.arccos(cosang)
 
-class Mesh2D:
-    """
-    Constructs a regular 2D mesh based on a configuration dictionary.
+class GroundGridPlot(MeshPlotter):
+    def __init__(self):
+        super().__init__()
 
-    Attributes:
-        X (np.ndarray): 2D array of X-coordinates.
-        Y (np.ndarray): 2D array of Y-coordinates.
-        Z (np.ndarray): 2D array of Z-coordinates (initialized to zeros).
-    """
-    def __init__(self, config: Config):
-        # Unpack configuration
-        xt = config.farm_xt
-        xf = config.farm_xf
-        yt = config.farm_yt
-        yf = config.farm_yf
-        dx = config.farm_cellsize_x
-        dy = config.farm_cellsize_y
+        self.X = None
+        self.Y = None
+        self.Z = None
 
-        # Determine number of points along each axis
-        nx = int(round((xf - xt) / dx)) + 1
-        ny = int(round((yf - yt) / dy)) + 1
+    def plot(self, mesh: Mesh2D) -> None:
+        grid = mesh.to_ground_grid()
+        self.X = grid.X
+        self.Y = grid.Y
+        self.Z = grid.point_values["Z"]
 
-        # Generate linspace for each axis
-        x_vals = np.linspace(xt, xf, nx)
-        y_vals = np.linspace(yt, yf, ny)
+        self.plot_plotly()
 
-        # Create coordinate grids
-        self.X, self.Y = np.meshgrid(x_vals, y_vals, indexing='ij')
-
-        # Initialize Z to zero
-        self.Z = np.zeros_like(self.X)
-
-    def get_point(self, ix: int, iy: int) -> tuple[float, float, float]:
-        """
-        Retrieve the point at mesh indices (ix, iy).
-
-        Args:
-            ix (int): Index along the X-direction (0 <= ix < nx).
-            iy (int): Index along the Y-direction (0 <= iy < ny).
-
-        Returns:
-            Point: The Point object at the specified indices.
-        """
-        x = float(self.X[ix, iy])
-        y = float(self.Y[ix, iy])
-        z = float(self.Z[ix, iy])
-        return x, y, z
-
-    @property
-    def shape(self) -> tuple:
-        """
-        Returns the shape of the mesh as (nx, ny).
-        """
-        return self.X.shape
-    
-    def check_mesh_quality(self):
-        max_skewness, mean_skewness = self.mesh_skewness_stats()
-
-        print("The maximum skewness angle [rad]: ",max_skewness)
-        print("The mean skewness angle [rad]: ",mean_skewness)
-    
-    def mesh_skewness_stats(self):
-        """
-        Given X, Y, Z of shape (n, m), interpreted as a regular quad‐mesh,
-        compute for each quad (cell) its skewness = max_i(|angle_i - 90°|)/90°,
-        where angle_i are the four interior angles of the quad.
-        Returns (max_skewness, avg_skewness), both in [0, 1].
-        """
-        # pack into points array of shape (n, m, 3)
-        P = np.stack((self.X, self.Y, self.Z), axis=-1)
-
-        # grab the four corners of each quad:
-        P00 = P[:-1, :-1]   # lower‐left
-        P10 = P[1:,  :-1]   # upper‐left
-        P11 = P[1:,  1:]    # upper‐right
-        P01 = P[:-1, 1:]    # lower‐right
-
-        # for each corner, form the two edges meeting there:
-        # at P00: edges to P10 and to P01
-        e00a = P10 - P00
-        e00b = P01 - P00
-
-        # at P10: edges to P11 and to P00
-        e10a = P11 - P10
-        e10b = P00 - P10
-
-        # at P11: edges to P01 and to P10
-        e11a = P01 - P11
-        e11b = P10 - P11
-
-        # at P01: edges to P00 and to P11
-        e01a = P00 - P01
-        e01b = P11 - P01
-
-        # compute the four angle arrays (shape (n-1, m-1))
-        θ00 = angle(e00a, e00b)
-        θ10 = angle(e10a, e10b)
-        θ11 = angle(e11a, e11b)
-        θ01 = angle(e01a, e01b)
-
-        # deviation from 90° = |θ - π/2|
-        dev00 = np.abs(θ00 - np.pi/2)
-        dev10 = np.abs(θ10 - np.pi/2)
-        dev11 = np.abs(θ11 - np.pi/2)
-        dev01 = np.abs(θ01 - np.pi/2)
-
-        # per‐face skewness = (max deviation)/(π/2)
-        max_dev = np.maximum.reduce([dev00, dev10, dev11, dev01])
-        skewness = max_dev / (np.pi/2)
-
-        return skewness.max(), skewness.mean()
-        
     def plot_plotly(self, title="Mesh2D Surface"):
         """
         Interactive Plotly surface with:
@@ -205,6 +105,13 @@ class Mesh2D:
         )
 
         fig.show()
+        #fig.write_html("ground_grid_plot.html", auto_open=True)
+        return 
+        fig.write_html("plot.html", auto_open=False)
+        import webbrowser, threading
+        threading.Thread(target=lambda: webbrowser.open_new_tab("plot.html"), daemon=True).start()
+
+
     def plot_wireframe(self, title="Wireframe Only"):
         """
         Draws only the grid lines of a structured mesh:

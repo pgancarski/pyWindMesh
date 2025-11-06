@@ -1,5 +1,0 @@
-from .meshSmoother2D import MeshSmoother2D
-from .gaussSeidelTTMSmoother2D import GaussSeidelTTMSmoother2D 
-from .elipticMeshSmoother2D import EllipticMeshSmoother2D
-from .surfaceSquerifyFaces import SurfaceSquerifyFaces
-from .surfaceMaxAngleSmoothing import SurfaceMaxAngleSmoothing
