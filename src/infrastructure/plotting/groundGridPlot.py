@@ -42,12 +42,10 @@ class GroundGridPlot(MeshPlotter):
         dx = np.diff(x_vals).mean() if x_vals.size > 1 else 1.0
         dy = np.diff(y_vals).mean() if y_vals.size > 1 else 1.0
 
-        center = 50
-
         surf = go.Surface(
-            x=self.X[center-10 : center+10, :],
-            y=self.Y[center-10 : center+10, :],
-            z=self.Z[center-10 : center+10, :],
+            x=self.X,
+            y=self.Y,
+            z=self.Z,
             colorscale=[[0, "blue"], [1, "blue"]],
             showscale=False,
             contours={
@@ -105,12 +103,6 @@ class GroundGridPlot(MeshPlotter):
         )
 
         fig.show()
-        #fig.write_html("ground_grid_plot.html", auto_open=True)
-        return 
-        fig.write_html("plot.html", auto_open=False)
-        import webbrowser, threading
-        threading.Thread(target=lambda: webbrowser.open_new_tab("plot.html"), daemon=True).start()
-
 
     def plot_wireframe(self, title="Wireframe Only"):
         """
