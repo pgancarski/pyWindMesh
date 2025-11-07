@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Tuple
-from math import acos, degrees, radians
+from math import acos, radians
 
 from src.domain import Grid2D
 from src.domain import GridSmoother2D
@@ -20,7 +20,7 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
     max_angle: float=30 #in deegres
     first_cell_size: float=0.0
 
-    def smooth_step(self, grid:Grid2D) -> Tuple[Grid2D, float]:
+    def smooth_step(self, grid:Grid2D, relaxation_factor:float) -> Tuple[Grid2D, float]:
         X = grid.X.copy()
         Y = grid.Y.copy()
         Z = grid.point_values["Z"].copy()
@@ -102,12 +102,11 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
         # X and Y are unchanged
         new_X, new_Y = X, Y
 
+        # apply relaxation factor
+        new_Z = (1-relaxation_factor) * Z + relaxation_factor * new_Z
+
         # compute max displacement
-        error = max(
-            abs(new_X - X).max(),
-            abs(new_Y - Y).max(),
-            abs(new_Z - Z).max()
-        )
+        error = abs(new_Z - Z).max()
 
         grid.set_new_XYZ(new_X, new_Y, new_Z)
 

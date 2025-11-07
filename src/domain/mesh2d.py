@@ -63,6 +63,7 @@ class Mesh2D(ABC):
     def apply_grid_smoother(
             self,
             grid_smoother: GridSmoother2D,
+            relaxation_factor: float = 0.5,
             tol: Optional[float] = None,
             max_steps: Optional[int] = None,
             zone: Optional[List[str]] = None

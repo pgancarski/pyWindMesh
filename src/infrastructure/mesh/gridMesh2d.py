@@ -149,6 +149,7 @@ class GridMesh2D(Mesh2D):
     def apply_grid_smoother(
             self,
             grid_smoother: GridSmoother2D,
+            relaxation_factor: float = 0.5,
             tol: Optional[float] = None,
             max_steps: Optional[int] = None,
             zone: Optional[List[str]] = None
@@ -167,7 +168,7 @@ class GridMesh2D(Mesh2D):
             kwargs["zone"] = zone
 
 
-        new_grid, error = grid_smoother.smooth(self.grid, **kwargs)
+        new_grid, error = grid_smoother.smooth(self.grid,relaxation_factor, **kwargs)
         self.grid = new_grid
 
         return error
