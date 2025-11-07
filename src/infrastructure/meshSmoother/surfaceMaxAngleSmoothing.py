@@ -16,14 +16,62 @@ def compute_angle(p1, pc, p2):
     cosv = np.clip(dot / (n1 * n2), -1.0, 1.0)
     return acos(cosv)
 
+def add_padding(X,Y,Z):
+    """
+    Extend structured grid (X,Y) outward by one cell width in all directions.
+    Z is padded by copying edge values.
+    """
+    # --- pad in Y-direction (columns) ---
+    dXdy_start = X[:, 1] - X[:, 0]
+    dXdy_end   = X[:, -1] - X[:, -2]
+    dYdy_start = Y[:, 1] - Y[:, 0]
+    dYdy_end   = Y[:, -1] - Y[:, -2]
+
+    X = np.hstack([
+        (X[:, [0]] - dXdy_start[:, None]),   # extrapolate one col to the left
+        X,
+        (X[:, [-1]] + dXdy_end[:, None])     # extrapolate one col to the right
+    ])
+    Y = np.hstack([
+        (Y[:, [0]] - dYdy_start[:, None]),
+        Y,
+        (Y[:, [-1]] + dYdy_end[:, None])
+    ])
+
+    # --- pad in X-direction (rows) ---
+    dXdx_start = X[1, :] - X[0, :]
+    dXdx_end   = X[-1, :] - X[-2, :]
+    dYdx_start = Y[1, :] - Y[0, :]
+    dYdx_end   = Y[-1, :] - Y[-2, :]
+
+    X = np.vstack([
+        X[[0], :] - dXdx_start,
+        X,
+        X[[-1], :] + dXdx_end
+    ])
+    Y = np.vstack([
+        Y[[0], :] - dYdx_start,
+        Y,
+        Y[[-1], :] + dYdx_end
+    ])
+
+    # --- Z: copy edges only ---
+    Z = np.pad(Z, 1, mode='edge')
+
+    return X, Y, Z
+
 class SurfaceMaxAngleSmoothing(GridSmoother2D):
     max_angle: float=30 #in deegres
     first_cell_size: float=0.0
+    smooth_edges: bool=True
 
     def smooth_step(self, grid:Grid2D, relaxation_factor:float) -> Tuple[Grid2D, float]:
         X = grid.X.copy()
         Y = grid.Y.copy()
         Z = grid.point_values["Z"].copy()
+
+        if self.smooth_edges:
+            X,Y,Z = add_padding(X,Y,Z)
 
         # set up reference cell size on first call
         if self.first_cell_size == 0.0:
@@ -52,6 +100,7 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
                 zc = Z[i,j]
 
                 # check N–C–S
+                zc = Z[i,j]
                 pc = np.array([*pc_xy, zc])
                 θ_ns = compute_angle(pN, pc, pS)
                 supp_ns = np.degrees(np.pi - θ_ns)
@@ -75,7 +124,11 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
                                 z_lo = zm
                         zc = 0.5 * (z_lo + z_hi)
 
-                # check E–C–W on the (possibly updated) zc
+                # save the result
+                zNS=zc
+
+                # check E–C–W 
+                zc = Z[i,j]
                 pc = np.array([*pc_xy, zc])
                 θ_ew = compute_angle(pE, pc, pW)
                 supp_ew = np.degrees(np.pi - θ_ew)
@@ -96,11 +149,18 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
                             else:
                                 z_lo = zm
                         zc = 0.5 * (z_lo + z_hi)
+                zEW=zc
 
-                new_Z[i,j] = zc
+                # take the average from the two new proposed zc
+                # this is to prevent instable, oscilating behaviour from the two proposals when facing sadles/folds in the terrain
+                new_Z[i,j] = 0.5 * (zNS + zEW)
 
-        # X and Y are unchanged
-        new_X, new_Y = X, Y
+        if self.smooth_edges:
+            # --- Remove the padded border before relaxation ---
+            new_Z = new_Z[1:-1, 1:-1]
+            Z = Z[1:-1, 1:-1]
+            X = X[1:-1, 1:-1]
+            Y = Y[1:-1, 1:-1]
 
         # apply relaxation factor
         new_Z = (1-relaxation_factor) * Z + relaxation_factor * new_Z
@@ -108,6 +168,6 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
         # compute max displacement
         error = abs(new_Z - Z).max()
 
-        grid.set_new_XYZ(new_X, new_Y, new_Z)
+        grid.set_new_XYZ(X, Y, new_Z)
 
         return grid, error
