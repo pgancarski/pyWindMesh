@@ -2,14 +2,14 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import List, Optional
 
-from config import Config
+from config import GroundMeshConfig
 
 from .grid2d import Grid2D
 from .gridSmoother2D import GridSmoother2D
 from .spatialValueProvider import SpatialValueProvider
 
 class Mesh2D(ABC):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: GroundMeshConfig) -> None:
         """
         Base constructor for 2D mesh classes.
 

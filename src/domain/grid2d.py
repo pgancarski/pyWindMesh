@@ -115,12 +115,18 @@ class Grid2D:
                 f"Point values shape {values.shape} does not match grid shape {self.X.shape}"
             )
 
-        if name in self.point_values:
+        if self.in_point_values(name):
             self.point_values[name] = np.array(values)
         elif create:
             self.create_point_values(name, values)
         else:
             raise KeyError(f"Point field '{name}' does not exist and create=False")
+
+    def in_point_values(self, name: str)->bool:
+        return name in self.point_values
+    
+    def in_face_values(self, name: str)->bool:
+        return name in self.face_values
 
     def set_face_values(self, name: str, values: np.ndarray, create: bool = False):
         """
@@ -148,13 +154,60 @@ class Grid2D:
                 f"Face values shape {values.shape} does not match expected shape {expected_shape}"
             )
 
-        if name in self.face_values:
+        if self.in_face_values(name):
             self.face_values[name] = np.array(values)
         elif create:
             self.create_face_values(name, values)
         else:
             raise KeyError(f"Face field '{name}' does not exist and create=False")
-        
+    
+    def get_point_values(self, name: str) -> np.ndarray:
+        """
+        Retrieve a field defined at grid points.
+
+        Parameters
+        ----------
+        name : str
+            Name of the point field to retrieve.
+
+        Returns
+        -------
+        np.ndarray
+            2D array of values defined at grid points.
+
+        Raises
+        ------
+        KeyError
+            If the specified point field does not exist.
+        """
+        if name not in self.point_values:
+            raise KeyError(f"Point field '{name}' does not exist")
+        return self.point_values[name]
+
+    def get_face_values(self, name: str) -> np.ndarray:
+        """
+        Retrieve a field defined at grid faces (cells).
+
+        Parameters
+        ----------
+        name : str
+            Name of the face field to retrieve.
+
+        Returns
+        -------
+        np.ndarray
+            2D array of values defined at grid faces.
+
+        Raises
+        ------
+        KeyError
+            If the specified face field does not exist.
+        """
+        if name not in self.face_values:
+            raise KeyError(f"Face field '{name}' does not exist")
+        return self.face_values[name]
+
+
     def to_points_vector(self) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
         """
         Flatten X, Y, and all point_values arrays into 1D vectors.

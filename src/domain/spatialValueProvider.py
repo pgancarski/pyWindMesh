@@ -1,13 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-from config import Config
-
 class SpatialValueProvider(ABC):
     """Abstract interface for computing spatially varying values (e.g. elevation, roughness)."""
-
-    def __init__(self, config: Config):
-        self.config = config
 
     @abstractmethod
     def value_at_point(self, x: float, y: float, z: float = 0.0) -> float:

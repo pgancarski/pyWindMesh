@@ -4,5 +4,5 @@ from src.domain import Mesh2D
 
 class MeshPlotter(ABC):
     @abstractmethod
-    def plot(self, mesh: Mesh2D) -> None:
+    def plot(self, mesh: Mesh2D, field_name: str = "Z") -> None:
         ...
