@@ -3,20 +3,56 @@ import laspy
 from scipy.spatial import KDTree
 
 from domain import SpatialValueProvider
+from config import TopographyConfig, GroundMeshConfig
 
 class LAS_Topography(SpatialValueProvider):
-    def __init__(self, config, laz_path:str):
-        super().__init__(config)
+    def __init__(self, topography_config: TopographyConfig, mesh_config: GroundMeshConfig | None = None):
+        self.wind_direction = 0
+        self.range_xf = self.range_xt = self.range_yf = self.range_yt = None
 
-        self.laz_path = laz_path
-        self.k = 8                  # number of neighbors for interpolation
-        self.power = 1.0          # inverse-distance power
+        if mesh_config is not None:
+            self.wind_direction = mesh_config.wind_direction
+            self.range_xf = mesh_config.expected_topography_xf
+            self.range_xt = mesh_config.expected_topography_xt
+            self.range_yf = mesh_config.expected_topography_yf
+            self.range_yt = mesh_config.expected_topography_yt
 
-        # Load LAZ and build KD-tree for neighbor queries
-        las = laspy.read(self.laz_path)
+        self.laz_path = topography_config.file_path
+        self.k = 8          # number of neighbors for interpolation
+        self.power = 1.0    # inverse-distance power
 
-        self._points = las.xyz[:, :2]
-        self._z = las.xyz[:, 2]
+        has_bbox = all(v is not None for v in (self.range_xf, self.range_xt, self.range_yf, self.range_yt))
+
+        if has_bbox:
+            xmin, xmax = min(self.range_xf, self.range_xt), max(self.range_xf, self.range_xt)
+            ymin, ymax = min(self.range_yf, self.range_yt), max(self.range_yf, self.range_yt)
+
+            xs, ys, zs = [], [], []
+            with laspy.open(self.laz_path) as reader:
+                # iterate without loading the entire file into memory
+                for chunk in reader.chunk_iterator(5_000_000):
+                    # chunk.x/.y/.z are scaled float coordinates
+                    mask = (chunk.x >= xmin) & (chunk.x <= xmax) & (chunk.y >= ymin) & (chunk.y <= ymax)
+                    if np.any(mask):
+                        xs.append(chunk.x[mask])
+                        ys.append(chunk.y[mask])
+                        zs.append(chunk.z[mask])
+
+            if xs:
+                x = np.concatenate(xs)
+                y = np.concatenate(ys)
+                z = np.concatenate(zs)
+            else:
+                raise ValueError("No LAS/LAZ points found inside the provided bounding box.")
+
+            self._points = np.column_stack((x, y))
+            self._z = z
+
+        else:
+            las = laspy.read(self.laz_path)
+            self._points = las.xyz[:, :2]
+            self._z = las.xyz[:, 2]
+
         self._kdtree = KDTree(self._points)
 
     def get_domain_range(self) -> tuple[float, float, float, float]:
