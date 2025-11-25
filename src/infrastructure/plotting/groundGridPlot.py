@@ -3,22 +3,22 @@ import pyvista as pv
 import cmocean
 
 from src.application.interfaces import MeshPlotter
+from src.infrastructure.topography.topographyUtils import un_rotate_points
+
 from src.domain import Mesh2D
 from src.domain import Grid2D
 
 
 class GroundGridPlot(MeshPlotter):
-    def __init__(self):
+    def __init__(self, wind_direction:float = 0, center_x:float = 0, center_y:float = 0):
         super().__init__()
-
-        self.X = None
-        self.Y = None
-        self.Z = None
+        self.wind_direction=wind_direction
+        self.center_x=center_x
+        self.center_y=center_y
 
     def plot(self, mesh: Mesh2D, field_name: str = "Z") -> None:
         grid = mesh.to_ground_grid()
         self.plot_pyvista(grid, field_name)
-
 
     def plot_pyvista(self, grid: Grid2D, field_name: str = "Z") -> None:
         """
@@ -54,10 +54,25 @@ class GroundGridPlot(MeshPlotter):
 
         # Build a StructuredGrid: points are (X, Y, Z)
         sg = pv.StructuredGrid()
+
+        # Flatten coordinates
         # Use Fortran order because meshgrid with indexing='ij' is column-major in sense of pyvista
-        sg.points = np.column_stack(
+        points = np.column_stack(
             [X.ravel(order="F"), Y.ravel(order="F"), Z.ravel(order="F")]
         )
+
+        # === APPLY ROTATION TO XY ===
+        un_rotate_points(
+            points[:, :2],                     # XY slice
+            angle_deg=self.wind_direction,
+            center_x=self.center_x,
+            center_y=self.center_y,
+            inplace=True
+        )
+
+        # Assign points to grid
+        sg.points = points
+
         # Dimensions are number of points in each direction
         sg.dimensions = (nx, ny, 1)
 

@@ -178,3 +178,4 @@ data/*
 src/old/*
 *.html
 .vscode/*
+poetry.lock

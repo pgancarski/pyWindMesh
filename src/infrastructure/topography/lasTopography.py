@@ -4,6 +4,7 @@ from scipy.spatial import KDTree
 
 from domain import SpatialValueProvider
 from config import TopographyConfig, GroundMeshConfig
+from .topographyUtils import rotate_points
 
 class LAS_Topography(SpatialValueProvider):
     def __init__(self, topography_config: TopographyConfig, mesh_config: GroundMeshConfig | None = None):
@@ -22,7 +23,7 @@ class LAS_Topography(SpatialValueProvider):
         self.power = 1.0    # inverse-distance power
 
         has_bbox = all(v is not None for v in (self.range_xf, self.range_xt, self.range_yf, self.range_yt))
-
+        has_bbox=False #TODO the bbox is broken and needs to be fixed
         if has_bbox:
             xmin, xmax = min(self.range_xf, self.range_xt), max(self.range_xf, self.range_xt)
             ymin, ymax = min(self.range_yf, self.range_yt), max(self.range_yf, self.range_yt)
@@ -53,6 +54,8 @@ class LAS_Topography(SpatialValueProvider):
             self._points = las.xyz[:, :2]
             self._z = las.xyz[:, 2]
 
+        if not mesh_config is None:
+            self._points = rotate_points(self._points, mesh_config.wind_direction, mesh_config.center_x, mesh_config.center_y, inplace=True)
         self._kdtree = KDTree(self._points)
 
     def get_domain_range(self) -> tuple[float, float, float, float]:

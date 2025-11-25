@@ -23,43 +23,45 @@ from infrastructure.plotting import GroundGridPlot
 terrain_mesh_setup = {
      "wind_direction": 45.0,
      #FARM
-     "farm_size_up": 300,
+     "farm_size_up": 400,
      "farm_size_down": 400,
-     "farm_size_left": 500,
+     "farm_size_left": 400,
      "farm_size_right": 400,
-     "farm_cellsize_x": 9.0,
-     "farm_cellsize_y": 10.0,
+     "farm_cellsize_x": 5.0,
+     "farm_cellsize_y": 5.0,
      # Transition
-     "transition_size_up": 900,
-     "transition_size_down": 1000,
-     "transition_size_left": 1100,
-     "transition_size_right": 1000,
+     "transition_size_up": 700,
+     "transition_size_down": 700,
+     "transition_size_left": 700,
+     "transition_size_right": 700,
 
      # Buffer grid parameters
-     "buffer_size_up": 400,
+     "buffer_size_up": 500,
      "buffer_size_down": 500,
-     "buffer_size_left": 600,
+     "buffer_size_left": 500,
      "buffer_size_right": 500,
-     "buffer_cellsize_x": 40,
+     "buffer_cellsize_x": 50,
      "buffer_cellsize_y": 50,
 }
 topography_config = TopographyConfig(
      file_path="./data/CoromandelForestPark_OpenTopography.laz"
 )
 
-#topo = GaussianHill(config)
-topo = LAS_Topography(topography_config=topography_config)
-
 # Autoset the center point to the center of topography
-farm_xt , farm_xf, farm_yt, farm_yf = topo.get_domain_range()
-
+temp_topo = LAS_Topography(topography_config=topography_config)
+farm_xt , farm_xf, farm_yt, farm_yf = temp_topo.get_domain_range()
 terrain_mesh_setup["center_x"] = (farm_xf+farm_xt)/2
 terrain_mesh_setup["center_y"] = (farm_yf+farm_yt)/2
 
+
+# Load the config
 config = Config(
      ground_mesh=GroundMeshConfig(**terrain_mesh_setup),
      topography=topography_config
 )
+
+# properly load the topography
+topo = LAS_Topography(topography_config=topography_config,mesh_config=config.ground_mesh)
 
 
 mesh2d = GridMesh2D(config.ground_mesh)
@@ -86,7 +88,11 @@ mesh2d.check_mesh_quality()
 timer.stop()
 
 
-plotter = GroundGridPlot()
+plotter = GroundGridPlot(
+    config.ground_mesh.wind_direction,
+    config.ground_mesh.center_x,
+    config.ground_mesh.center_y,
+    )
 
 plotter.plot(mesh2d)
 
