@@ -53,6 +53,20 @@ class Mesh2D(ABC):
         """
         ...
 
+    @abstractmethod
+    def get_point_values(self, name: str):
+        """
+        Abstract method for getting values for points.
+        """
+        ...
+
+    @abstractmethod
+    def get_face_values(self, name: str):
+        """
+        Abstract method for getting values for faces.
+        """
+        ...
+
     def set_Z(self, topography_provider:SpatialValueProvider):
         """
         Shorthand for setting up Z
@@ -75,4 +89,12 @@ class Mesh2D(ABC):
         max_steps - override for maximum number of steps
         zone - Optional list of mesh zones where the filter will be applied
         """
+        ...
+
+    @abstractmethod
+    def get_zone_code(self, zone_name:str)->int:
+        ...
+    
+    @abstractmethod
+    def get_zone_name(self, zone_code:int)->str:
         ...

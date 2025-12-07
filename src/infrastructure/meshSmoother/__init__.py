@@ -1,1 +1,2 @@
 from .surfaceMaxAngleSmoothing import SurfaceMaxAngleSmoothing
+from .surfaceSquerifyFaces import SurfaceSquerifyFaces

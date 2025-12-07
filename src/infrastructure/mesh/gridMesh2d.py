@@ -14,9 +14,6 @@ from .meshUtils import angle, compute_growth_rate, generate_axis, _distance_to_z
 
 from config import GroundMeshConfig
 
-
-
-
 """
 Conventions:
 
@@ -37,6 +34,9 @@ class GridMesh2D(Mesh2D):
     Constructs a regular 2D mesh based on a configuration dictionary.
     """
     def __init__(self, config: GroundMeshConfig):
+        self.zone_names = ["BUFFER", "TRANSITION", "FARM"]
+        self.zone_codes_map = {name:i for i, name in enumerate(self.zone_names)}
+
         # Unpack configuration
         self.mesh_zones_measurments = self._create_zone_measurments(config)
 
@@ -61,6 +61,8 @@ class GridMesh2D(Mesh2D):
         # Farm Zone
         # -------------------------------------------------------------------------
         _FZ = ZoneConfig()
+        _FZ.zone_code = self.get_zone_code("FARM")
+
         _FZ.dx_right = config.farm_cellsize_x
         _FZ.dx_left  = config.farm_cellsize_x
         _FZ.dy_up    = config.farm_cellsize_y
@@ -75,6 +77,8 @@ class GridMesh2D(Mesh2D):
         # Buffer Zone
         # -------------------------------------------------------------------------
         _BZ = ZoneConfig()
+        _BZ.zone_code = self.get_zone_code("BUFFER")
+
         _BZ.dx_right = config.buffer_cellsize_x
         _BZ.dx_left  = config.buffer_cellsize_x
         _BZ.dy_up    = config.buffer_cellsize_y
@@ -89,6 +93,7 @@ class GridMesh2D(Mesh2D):
         # Transition Zone
         # -------------------------------------------------------------------------
         _TZ = ZoneConfig()
+        _TZ.zone_code = self.get_zone_code("TRANSITION")
 
         # start with farm size and finish with buffer
         _TZ.dx_right = config.farm_cellsize_x
@@ -167,19 +172,12 @@ class GridMesh2D(Mesh2D):
     def _compute_zone_id(self) -> np.ndarray:
         """
         Creates an integer zone map:
-            0 = Farm
-            1 = Transition
-            2 = Buffer
         """
-
-        Z_FARM = 0
-        Z_TRANS = 1
-        Z_BUFF = 2
-
+        
         BZ, TZ, FZ = self.mesh_zones_measurments
 
         ny, nx = self.grid.X.shape
-        zone_id = np.full((ny, nx), Z_BUFF, dtype=int)   # start everything as buffer
+        zone_id = np.full((ny, nx), self.get_zone_code("BUFFER"), dtype=int)   # start everything as buffer
 
         # TRANSITION 
         xt = BZ.n_left                                                # B
@@ -188,7 +186,7 @@ class GridMesh2D(Mesh2D):
         yt = BZ.n_down                                          # B
         yf = yt + TZ.n_down + FZ.n_down + FZ.n_up + TZ.n_up - 1 # B+T+F+F+T
 
-        zone_id[xt:xf, yt:yf+1] = Z_TRANS
+        zone_id[xt:xf, yt:yf+1] = self.get_zone_code("TRANSITION")
 
         # FARM 
         xt = BZ.n_left + TZ.n_left            # B+T
@@ -197,7 +195,7 @@ class GridMesh2D(Mesh2D):
         yt = BZ.n_down + TZ.n_down            # B+T
         yf = yt + FZ.n_down + FZ.n_up - 1     # B+T+F+F
 
-        zone_id[xt:xf, yt:yf+1] = Z_FARM
+        zone_id[xt:xf, yt:yf+1] = self.get_zone_code("FARM")
 
         return zone_id
     
@@ -326,8 +324,13 @@ class GridMesh2D(Mesh2D):
         buffer_map = np.tile(levels_y[None, :], (nx, 1))
 
         return buffer_map
+    
+    def get_zone_code(self, zone_name:str)->int:
+        return self.zone_codes_map[zone_name]
 
-
+    def get_zone_name(self, zone_code:int)->str:
+        return self.zone_names[zone_code]
+    
     def to_ground_grid(self) -> Grid2D:
         return self.grid
     
@@ -371,6 +374,12 @@ class GridMesh2D(Mesh2D):
     def set_face_values(self, name: str, values_provider:SpatialValueProvider):
         values = values_provider.values_at_points(self.grid.X, self.grid.Y)
         self.grid.set_face_values(name, values, create=True)
+
+    def get_point_values(self, name: str) -> np.ndarray:
+        return self.grid.get_point_values(name)
+
+    def get_face_values(self, name: str) -> np.ndarray:
+        return self.grid.get_face_values(name)
 
     @property
     def shape(self) -> tuple:

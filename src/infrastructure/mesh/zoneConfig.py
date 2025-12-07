@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 
+
+
 @dataclass
-class ZoneConfig:
+class ZoneConfig: 
+    zone_code: int = 0 # the zone code
+
     dx_right: float = 0 # cell size, 
     dx_left: float = 0
     dy_up: float = 0
@@ -36,4 +40,3 @@ class ZoneConfig:
     x_right_outer: int = 0
     y_up_outer: int = 0
     y_down_outer: int = 0 
-

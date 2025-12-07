@@ -173,11 +173,12 @@ class GroundMeshConfig(BaseModel):
 
             return max(xs), min(xs), max(ys), min(ys)
 
-
-
-
-#class GeneralConfig(BaseModel):
-    
+class VerticalDistributionConfig(BaseModel):
+    minztop:float
+    height_multiplier:float
+    first_cell_size:float
+    growth_rate:float
+    n_flat_layers:int
 
 class TopographyConfig(BaseModel):
     file_path: str
@@ -186,6 +187,7 @@ class Config(BaseModel):
     #general:GeneralConfig
     ground_mesh:GroundMeshConfig
     topography:TopographyConfig
+    vertical_distribution:VerticalDistributionConfig
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "Config":
