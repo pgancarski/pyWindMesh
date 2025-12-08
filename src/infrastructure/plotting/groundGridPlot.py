@@ -16,80 +16,51 @@ class GroundGridPlot(MeshPlotter):
         self.center_x=center_x
         self.center_y=center_y
 
-    def plot(self, mesh: Mesh2D, field_name: str = "Z") -> None:
-        grid = mesh.to_ground_grid()
-        self.plot_pyvista(grid, field_name)
-
-    def plot_pyvista(self, grid: Grid2D, field_name: str = "Z") -> None:
-        """
-        Plot a 2D structured grid using pyvista, with faces colored by the
-        given point field and geometry defined by point_values["Z"].
-
-        Parameters
-        ----------
-        grid : Grid2D
-            Instance of Grid2D containing X, Y, and point_values["Z"] for the
-            vertical coordinate, plus point_values[field_name] for colouring.
-        field_name : str, optional
-            Name of the point field to use for colouring, by default "Z".
-        """
+    def build_pyvista_grid(self, grid: Grid2D, field_name: str = "Z") -> pv.StructuredGrid:
         X = grid.X
         Y = grid.Y
 
-        # Z is always taken from the "Z" field for geometry
         try:
             Z = grid.point_values["Z"]
         except KeyError as exc:
             raise KeyError('Grid must contain a "Z" field in point_values for elevation.') from exc
 
-        # Scalars for colouring come from field_name (which may or may not be "Z")
         C = grid.point_values[field_name]
 
         if X.shape != Y.shape or Z.shape != X.shape or C.shape != X.shape:
-            raise ValueError(
-                f"Shape mismatch: X{X.shape}, Y{Y.shape}, Z{Z.shape}, {field_name}{C.shape}"
-            )
+            raise ValueError("Shape mismatch in ground grid")
 
         nx, ny = X.shape
 
-        # Build a StructuredGrid: points are (X, Y, Z)
         sg = pv.StructuredGrid()
 
-        # Flatten coordinates
-        # Use Fortran order because meshgrid with indexing='ij' is column-major in sense of pyvista
         points = np.column_stack(
             [X.ravel(order="F"), Y.ravel(order="F"), Z.ravel(order="F")]
         )
 
-        # === APPLY ROTATION TO XY ===
+        # ✅ SAME rotation logic reused
         un_rotate_points(
-            points[:, :2],                     # XY slice
+            points[:, :2],
             angle_deg=self.wind_direction,
             center_x=self.center_x,
             center_y=self.center_y,
             inplace=True
         )
 
-        # Assign points to grid
         sg.points = points
-
-        # Dimensions are number of points in each direction
         sg.dimensions = (nx, ny, 1)
 
-        # Put colouring field in point data
         sg[field_name] = C.ravel(order="F")
 
-        # Convert to cell data so faces are colored by the chosen field
-        sg_cell = sg.point_data_to_cell_data()
+        # color faces not vertices
+        return sg.point_data_to_cell_data()
 
-        # Optionally rename to a clean cell-data name
-        if field_name not in sg_cell.cell_data:
-            # After point_data_to_cell_data, the key will typically be the same as field_name
-            # but in case pyvista added a suffix, take the only one
-            k = list(sg_cell.cell_data.keys())[0]
-            sg_cell.cell_data[field_name] = sg_cell.cell_data.pop(k)
 
-        # Plot with visible edges
+    def plot(self, mesh: Mesh2D, field_name: str = "Z") -> None:
+        grid = mesh.to_ground_grid()
+  
+        sg_cell = self.build_pyvista_grid(grid, field_name)
+
         p = pv.Plotter()
         p.add_mesh(
             sg_cell,
