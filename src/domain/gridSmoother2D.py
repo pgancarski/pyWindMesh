@@ -7,7 +7,7 @@ from .grid2d import Grid2D
 class GridSmoother2D(ABC):
 
     @abstractmethod
-    def smooth_step(self, grid:Grid2D, relaxation_factor:float) -> Tuple[Grid2D, float]:
+    def smooth_step(self, grid:Grid2D, relaxation_map: np.ndarray) -> Tuple[Grid2D, float]:
         """
         Perform one smoothing pass, returning corrected grid and the residual error..
         Must be implemented by subclasses.
@@ -17,7 +17,7 @@ class GridSmoother2D(ABC):
     def smooth(
         self,
         grid:Grid2D,
-        relaxation_factor:float,
+        relaxation_map: np.ndarray,
         tol: float = 1e-6,
         max_steps: int = 10
     ) -> Tuple[Grid2D, float]:
@@ -37,7 +37,7 @@ class GridSmoother2D(ABC):
         epsilon = np.inf
         for step in range(1, max_steps + 1):
             # perform one smoothing iteration
-            grid, epsilon = self.smooth_step(grid, relaxation_factor)
+            grid, epsilon = self.smooth_step(grid, relaxation_map)
 
             # check for convergence
             # print("GridSmoother2D, convergence: "+str(epsilon))

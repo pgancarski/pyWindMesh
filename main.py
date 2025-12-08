@@ -79,12 +79,12 @@ topo = LAS_Topography(topography_config=topography_config,mesh_config=config.gro
 
 mesh2d = GridMesh2D(config.ground_mesh)
 max_angle_smoother = SurfaceMaxAngleSmoothing()
-#squerify_smoother = SurfaceSquerifyFaces()
+squerify_smoother = SurfaceSquerifyFaces()
 timer = Timer()
 
 
 
-relaxation_factor = 0.5
+relaxation_factor = 0.9
 
 max_angle_smoother.max_angle=10
 
@@ -93,14 +93,21 @@ mesh2d.set_Z(topo)
 
 print("Mesh quality before smoothing")
 mesh2d.check_mesh_quality()
-epsilon = mesh2d.apply_grid_smoother(max_angle_smoother, max_steps=50,relaxation_factor=0.8) #n=20
-#epsilon = mesh2d.apply_grid_smoother(squerify_smoother, max_steps=80, relaxation_factor=0.99) #n=5
-#epsilon = mesh2d.apply_grid_smoother(max_angle_smoother, max_steps=20) #n=20
+epsilon = mesh2d.apply_grid_smoother(max_angle_smoother, max_steps=20,relaxation_factor=relaxation_factor)
+epsilon = mesh2d.apply_grid_smoother(squerify_smoother, max_steps=10, relaxation_factor=relaxation_factor, zones=["TRANSITION", "FARM"]) 
+# reinterpolate the topography not to get too far from oryginal, and apply the filters again
+mesh2d.set_Z(topo) 
+epsilon = mesh2d.apply_grid_smoother(max_angle_smoother, max_steps=20,relaxation_factor=relaxation_factor) 
+# get more agressive in farm zone, preventing the filter from modifying too much growth rates in transition
+epsilon = mesh2d.apply_grid_smoother(squerify_smoother, max_steps=40, relaxation_factor=1, zones=["FARM"])  
+epsilon = mesh2d.apply_grid_smoother(max_angle_smoother, max_steps=10, relaxation_factor=relaxation_factor) 
+
+
 print("Mesh quality after smoothing")
 mesh2d.check_mesh_quality()
 timer.stop()
 
-if False:
+if True:
      plotter = GroundGridPlot(
      config.ground_mesh.wind_direction,
      config.ground_mesh.center_x,
@@ -111,6 +118,7 @@ if False:
      #plotter.plot(mesh2d,"buffer_blending")
      #plotter.plot(mesh2d,"zone_id")
 timer.start()
+
 mesh3d = StructuredHexMesh3d(config,mesh2d)
 mesh3d.build_3d_mesh()
 

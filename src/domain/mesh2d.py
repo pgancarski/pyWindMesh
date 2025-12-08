@@ -80,7 +80,7 @@ class Mesh2D(ABC):
             relaxation_factor: float = 0.5,
             tol: Optional[float] = None,
             max_steps: Optional[int] = None,
-            zone: Optional[List[str]] = None
+            zones: Optional[List[str]] = None
         ):
         """
         Applies GridSmoother2D filter where possible.

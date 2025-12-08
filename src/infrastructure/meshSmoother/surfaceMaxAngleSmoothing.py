@@ -195,7 +195,7 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
     first_cell_size: float=0.0
     smooth_edges: bool=True
 
-    def smooth_step(self, grid:Grid2D, relaxation_factor:float) -> Tuple[Grid2D, float]:
+    def smooth_step(self, grid:Grid2D,  relaxation_map: np.ndarray) -> Tuple[Grid2D, float]:
         X = grid.X.copy()
         Y = grid.Y.copy()
         Z = grid.point_values["Z"].copy()
@@ -220,7 +220,7 @@ class SurfaceMaxAngleSmoothing(GridSmoother2D):
             Y = Y[1:-1, 1:-1]
 
         # apply relaxation factor
-        new_Z = (1-relaxation_factor) * Z + relaxation_factor * new_Z
+        new_Z = (1.0 - relaxation_map) * Z + relaxation_map * new_Z
 
         # compute max displacement
         error = abs(new_Z - Z).max()

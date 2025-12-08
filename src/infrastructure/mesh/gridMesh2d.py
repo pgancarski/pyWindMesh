@@ -445,29 +445,77 @@ class GridMesh2D(Mesh2D):
 
         return skewness.max(), skewness.mean()
         
+
     def apply_grid_smoother(
-            self,
-            grid_smoother: GridSmoother2D,
-            relaxation_factor: float = 0.5,
-            tol: Optional[float] = None,
-            max_steps: Optional[int] = None,
-            zone: Optional[List[str]] = None
-        ):
+        self,
+        grid_smoother: GridSmoother2D,
+        relaxation_factor: float = 0.5,
+        tol: Optional[float] = None,
+        max_steps: Optional[int] = None,
+        zones: Optional[List[str]] = None,
+    ):
         """
-        Apply grid smoothing
+        Apply grid smoothing, restricting relaxation to selected zones.
+
+        Parameters
+        ----------
+        grid_smoother : GridSmoother2D
+            Smoother instance operating on Grid2D.
+        relaxation_factor : float, optional
+            Target relaxation factor (0–1) applied inside selected zones. Outside
+            those zones, the previous values are preserved. Defaults to 0.5.
+        tol : float, optional
+            Passed through to `grid_smoother.smooth`.
+        max_steps : int, optional
+            Passed through to `grid_smoother.smooth`.
+        zone : list of str, optional
+            Names of zones to which the smoother should apply. If omitted,
+            smoothing is allowed in every zone defined in `self.zone_names`.
+
+        Returns
+        -------
+        float
+            Reported error from `grid_smoother.smooth`.
+
+        Raises
+        ------
+        ValueError
+            If `relaxation_factor` is not in [0, 1] or if any requested zone
+            name is invalid.
+        KeyError
+            If the grid does not have a `zone_id` field.
         """
 
-        # deal with None's
+        if not (0.0 <= relaxation_factor <= 1.0):
+            raise ValueError(
+                f"relaxation_factor must be within [0, 1], got {relaxation_factor}"
+            )
+
+        # Determine which zones to activate
+        target_zones = zones if zones is not None else self.zone_names
+        unknown_zones = sorted(set(target_zones) - set(self.zone_names))
+        if unknown_zones:
+            raise ValueError(
+                f"Unknown zone name(s): {', '.join(unknown_zones)}. "
+                f"Valid zones are: {', '.join(self.zone_names)}."
+            )
+
+        # Fetch per-point zone ids
+        zone_id = self.grid.get_point_values("zone_id")
+
+        # Build the relaxation map (same shape as grid)
+        relaxation_map = np.zeros_like(zone_id, dtype=float)
+        target_codes = {self.zone_codes_map[name] for name in target_zones}
+        mask = np.isin(zone_id, list(target_codes))
+        relaxation_map[mask] = relaxation_factor
+
         kwargs = {}
         if tol is not None:
             kwargs["tol"] = tol
         if max_steps is not None:
             kwargs["max_steps"] = max_steps
-        if zone is not None:
-            kwargs["zone"] = zone
 
-
-        new_grid, error = grid_smoother.smooth(self.grid,relaxation_factor, **kwargs)
+        new_grid, error = grid_smoother.smooth(self.grid, relaxation_map, **kwargs)
         self.grid = new_grid
 
         return error
