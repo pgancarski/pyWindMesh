@@ -150,8 +150,8 @@ class StructuredHexMesh3d():
         if not (0 < iz0 < izn < nz):
             raise ValueError("Require 0 < iz0 < izn < nz.")
 
-        for ix in range(1, nx - 1):
-            for iy in range(1, ny - 1):
+        for ix in range(0, nx ):
+            for iy in range(0, ny ):
                 self._make_curved_in_column(ix, iy, iz0, izn)
 
 
