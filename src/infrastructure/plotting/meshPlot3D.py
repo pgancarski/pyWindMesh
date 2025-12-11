@@ -2,51 +2,36 @@ import pyvista as pv
 import numpy as np
 import cmocean
 
-from domain import Grid3D
-
 from infrastructure.mesh import StructuredHexMesh3d
-from infrastructure.topography.topographyUtils import un_rotate_points
+from config import GroundMeshConfig
+from infrastructure.exporters import grid3D_to_pyvista
 from infrastructure.plotting import GroundGridPlot
 
-def to_pyvista(grid:Grid3D, wind_direction=0, center_x=0, center_y=0) -> pv.StructuredGrid:
-    mesh = pv.StructuredGrid(grid.X, grid.Y, grid.Z)
-
-    # === APPLY ROTATION TO ALL POINTS ===
-    points = mesh.points.copy()
-
-    un_rotate_points(
-        points[:, :2],
-        angle_deg=wind_direction,
-        center_x=center_x,
-        center_y=center_y,
-        inplace=True
-    )
-
-    mesh.points = points
-
-    # Point data
-    for name, arr in grid.point_values.items():
-        mesh.point_data[name] = arr
-
-    # Cell data
-    for name, arr in grid.cell_values.items():
-        mesh.cell_data[name] = arr
-
-    return mesh
-
-
 class CrossectionMeshPlot3D:
-    def __init__(self, wind_direction=0, center_x=0, center_y=0):
+    def __init__(self, wind_direction=None, center_x=None, center_y=None):
         self.wind_direction = wind_direction
         self.center_x = center_x
         self.center_y = center_y
+
+    def _set_configs(self, config:GroundMeshConfig):
+        if self.wind_direction is None:
+            self.wind_direction = config.wind_direction
+
+        if self.center_x is None:
+            self.center_x = config.center_x
+
+        if self.center_y is None:
+            self.center_y = config.center_y
 
     def plot(self, mesh: StructuredHexMesh3d):
 
         grid3d = mesh.mesh
 
+        # define wd and center if undefined
+        self._set_configs(mesh.config.ground_mesh)
+
         # === BUILD ROTATED VOLUME ===
-        pv_mesh = to_pyvista(
+        pv_mesh = grid3D_to_pyvista(
             grid3d,
             wind_direction=self.wind_direction,
             center_x=self.center_x,
@@ -54,7 +39,7 @@ class CrossectionMeshPlot3D:
         )
 
         # === COMPUTE MID Y CLIP ===
-        slice_width = 2 * mesh.config.ground_mesh.farm_cellsize_x + mesh.config.ground_mesh.farm_cellsize_y
+        slice_width = 10 * mesh.config.ground_mesh.farm_cellsize_x + mesh.config.ground_mesh.farm_cellsize_y
         slice_y = self.get_rotated_slice(pv_mesh, width=slice_width)
 
         # === BUILD GROUND GRID ===
