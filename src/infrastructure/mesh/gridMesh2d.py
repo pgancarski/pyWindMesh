@@ -50,6 +50,9 @@ class GridMesh2D(Mesh2D):
         # Initialize Z to zero
         self.grid.create_point_values("Z", np.zeros_like(self.grid.X))
 
+        # Create a copy of the oryginal grid for future reference
+        self.reference_grid = Grid2D(x_vals, y_vals)
+
         # Create zones
         self.grid.create_point_values("zone_id", self._compute_zone_id())
         self.grid.create_point_values("buffer_blending", self._compute_buffer_blending())

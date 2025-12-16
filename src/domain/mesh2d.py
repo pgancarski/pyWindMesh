@@ -95,6 +95,9 @@ class Mesh2D(ABC):
     def get_zone_code(self, zone_name:str)->int:
         ...
     
-    @abstractmethod
-    def get_zone_name(self, zone_code:int)->str:
-        ...
+    def get_reference_grid(self)->Grid2D:
+        # reference grid should be setup at init, bofore any terrain filters are applied
+        # it represents the perfect distribution which is typically used at the higher layers of the mesh 
+        return self.reference_grid
+
+    

@@ -11,8 +11,6 @@ class SurfaceSquerifyFaces(GridSmoother2D):
     def __init__(self):
         super().__init__()
 
-        print("WARNING: SurfaceSquerifyFaces filter is unstable and not recomended to use, work in progress")
-
     def smooth_step(self, grid:Grid2D, relaxation_map: np.ndarray) -> Tuple[Grid2D, float]:
         """
         Improves surface mesh quality without flattening the topography.
