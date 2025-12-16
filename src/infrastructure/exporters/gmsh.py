@@ -2,22 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import gmsh
-import statistics as stats
-from typing import Iterable, Sequence, Dict, Any
 
 from domain import Grid3D
 from infrastructure.topography.topographyUtils import un_rotate_points
-
-import gmsh
-import statistics as stats
-import numpy as np
-from typing import Dict, Any
-
-
-from typing import Any, Dict
-import statistics as stats
-import numpy as np
-import gmsh
 
 def grid3D_to_gmsh(
     grid: Grid3D,
@@ -208,16 +195,24 @@ def grid3D_to_gmsh(
         vol_phys = model.addPhysicalGroup(3, [volume_tag])
         model.setPhysicalName(3, vol_phys, volume_name)
 
-        # Optional: export point and cell data as Gmsh views
+        # export point and cell data as Gmsh views
         if getattr(grid, "point_values", None):
             for name, values in grid.point_values.items():
                 data = np.asarray(values, order="F").ravel(order="F")
                 if data.size != total_nodes:
-                    raise ValueError(f"Point data '{name}' does not match node count.")
+                    raise ValueError(
+                        f"Point data '{name}' does not match node count."
+                    )
                 view_tag = gmsh.view.add(name)
                 gmsh.view.addModelData(
-                    view_tag, 0, model_name, "NodeData",
-                    node_tags, data.tolist(), 0.0, numComponents=1
+                    view_tag,
+                    0,
+                    model_name,
+                    "NodeData",
+                    node_tags,
+                    data.reshape(-1, 1).tolist(),
+                    0.0,
+                    numComponents=1,
                 )
 
         if getattr(grid, "cell_values", None):
@@ -225,11 +220,19 @@ def grid3D_to_gmsh(
             for name, values in grid.cell_values.items():
                 data = np.asarray(values, order="F").ravel(order="F")
                 if data.size != total_hexes:
-                    raise ValueError(f"Cell data '{name}' does not match element count.")
+                    raise ValueError(
+                        f"Cell data '{name}' does not match element count."
+                    )
                 view_tag = gmsh.view.add(name)
                 gmsh.view.addModelData(
-                    view_tag, 0, model_name, "ElementData",
-                    vol_elem_tags, data.tolist(), 0.0, numComponents=1
+                    view_tag,
+                    0,
+                    model_name,
+                    "ElementData",
+                    vol_elem_tags,
+                    data.reshape(-1, 1).tolist(),
+                    0.0,
+                    numComponents=1,
                 )
 
         if file_path:
