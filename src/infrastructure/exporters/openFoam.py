@@ -2,13 +2,43 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Union
+from dataclasses import dataclass, field
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 
 from domain import Grid3D
 from infrastructure.mesh import StructuredHexMesh3d
 from infrastructure.topography.topographyUtils import un_rotate_points
+
+@dataclass
+class CellFieldExportSpec:
+    """
+    Describe how a single cell-centered value should be written to OpenFOAM.
+    - name: key inside Grid3D.cell_values
+    - dimensions: OpenFOAM physical dimensions, e.g. "[0 0 0 0 0 0 0]"
+    - default_boundary: fallback boundary condition for every patch
+    - boundary_overrides: map of patch name -> {"type": "...", "value": "..."} overrides
+    - time_folder: sub-directory under the case (usually "0")
+    - field_class: "auto" (infer), "volScalarField", or "volVectorField"
+    """
+    name: str
+    dimensions: str = "[0 0 0 0 0 0 0]"
+    default_boundary: str = "zeroGradient"
+    boundary_overrides: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+    time_folder: str = "0"
+    field_class: Literal["auto", "volScalarField", "volVectorField"] = "auto"
 
 
 class OpenFoamStructuredMeshExporter:
@@ -47,15 +77,16 @@ class OpenFoamStructuredMeshExporter:
         self.patch_map = self._build_patch_map(patch_map)
 
     def export(
-        self,
-        mesh_or_grid: Union[StructuredHexMesh3d, Grid3D],
-        case_dir: Union[str, Path],
-        *,
-        wind_direction: Optional[float] = None,
-        center_x: Optional[float] = None,
-        center_y: Optional[float] = None,
-        apply_rotation: bool = True,
-    ) -> None:
+            self,
+            mesh_or_grid: Union[StructuredHexMesh3d, Grid3D],
+            case_dir: Union[str, Path],
+            *,
+            wind_direction: Optional[float] = None,
+            center_x: Optional[float] = None,
+            center_y: Optional[float] = None,
+            apply_rotation: bool = True,
+            cell_field_specs: Optional[Sequence[CellFieldExportSpec]] = None,
+        ) -> None:
         """
         Write the OpenFOAM polyMesh for the provided mesh/grid into case_dir/constant/polyMesh.
         """
@@ -79,6 +110,106 @@ class OpenFoamStructuredMeshExporter:
         self._write_neighbour(poly_mesh_dir / "neighbour", neighbour_internal)
         self._write_boundary(poly_mesh_dir / "boundary", boundary_blocks)
 
+        if cell_field_specs:
+            self._write_cell_fields(grid, case_dir, cell_field_specs)
+
+
+    def _write_cell_fields(
+            self,
+            grid: Grid3D,
+            case_dir: Union[str, Path],
+            specs: Sequence[CellFieldExportSpec],
+        ) -> None:
+        case_dir = Path(case_dir)
+        nx, ny, nz = grid.X.shape
+        cell_shape = (nx - 1, ny - 1, nz - 1)
+
+        for spec in specs:
+            if spec.name not in grid.cell_values:
+                raise KeyError(f"Grid3D.cell_values is missing '{spec.name}'.")
+            raw = np.asarray(grid.cell_values[spec.name])
+            flat = self._flatten_cell_field(raw, cell_shape)
+            n_components = 1 if flat.ndim == 1 else flat.shape[1]
+
+            field_class = spec.field_class
+            if field_class == "auto":
+                field_class = "volScalarField" if n_components == 1 else "volVectorField"
+
+            time_folder = case_dir / spec.time_folder
+            time_folder.mkdir(parents=True, exist_ok=True)
+
+            self._write_vol_field(
+                filepath=time_folder / spec.name,
+                field_class=field_class,
+                field_name=spec.name,
+                dimensions=spec.dimensions,
+                values=flat,
+                default_boundary=spec.default_boundary,
+                boundary_overrides=spec.boundary_overrides,
+            )
+
+    @staticmethod
+    def _flatten_cell_field(
+            data: np.ndarray,
+            cell_shape: Tuple[int, int, int],
+        ) -> np.ndarray:
+        if data.shape[:3] != cell_shape:
+            raise ValueError(
+                f"Cell field has spatial shape {data.shape[:3]}, expected {cell_shape}."
+            )
+
+        if data.ndim == 3:
+            return np.reshape(data, -1, order="F")
+
+        if data.ndim == 4:
+            comps = data.shape[3]
+            if comps not in (3,):
+                raise ValueError(
+                    "Only 3-component vector cell fields are supported (got "
+                    f"{comps})."
+                )
+            return np.reshape(data, (-1, comps), order="F")
+
+        raise ValueError("Cell field arrays must be 3D (scalar) or 4D (vector).")   
+
+    def _write_vol_field(
+            self,
+            filepath: Path,
+            *,
+            field_class: str,
+            field_name: str,
+            dimensions: str,
+            values: np.ndarray,
+            default_boundary: str,
+            boundary_overrides: Mapping[str, Mapping[str, str]],
+        ) -> None:
+        is_scalar = values.ndim == 1
+        component_tag = "scalar" if is_scalar else "vector"
+        value_formatter = (
+            lambda v: f"{v:.12e}"
+            if is_scalar
+            else f"({v[0]:.12e} {v[1]:.12e} {v[2]:.12e})"
+        )
+
+        with filepath.open("w", encoding="utf-8") as fh:
+            fh.write(self._foam_header(field_class, field_name))
+            fh.write(f"\ndimensions      {dimensions};\n")
+            fh.write(f"internalField   nonuniform List<{component_tag}>\n")
+            fh.write(f"{values.shape[0]}\n(\n")
+            for val in values:
+                fh.write(f"    {value_formatter(val)}\n")
+            fh.write(")\n;\n\n")
+            fh.write("boundaryField\n{\n")
+            for tag, patch_cfg in self.patch_map.items():
+                patch_name = patch_cfg["name"]
+                override = boundary_overrides.get(patch_name, {})
+                bc_type = override.get("type", default_boundary)
+                fh.write(f"    {patch_name}\n    {{\n")
+                fh.write(f"        type            {bc_type};\n")
+                if "value" in override:
+                    fh.write(f"        value           {override['value']};\n")
+                fh.write("    }\n")
+            fh.write("}\n")    
     # -------------------------------------------------------------------------
     # Geometry helpers
     # -------------------------------------------------------------------------
